@@ -1,0 +1,62 @@
+
+###############################
+#                             #
+# Initialize smav_search data #
+#                             #
+###############################
+
+SET statement_timeout = 0;
+INSERT INTO smav_search (sma_id, journal_id, search_vector)
+SELECT
+	sma.id,
+	journals.id,
+	(
+		setweight(to_tsvector(coalesce(journals.name, '')), 'B') ||
+		setweight(to_tsvector(coalesce(journals.subject_area, '')), 'B') ||
+		setweight(to_tsvector(coalesce(journals.subject_category, '')), 'D') ||
+		setweight(to_tsvector(coalesce(sma.abstract, '')), 'B') ||
+		setweight(to_tsvector(coalesce(sma.title, '')), 'A')
+	) AS vector
+FROM sma
+	LEFT JOIN journals ON (sma.journal_id = journals.id)
+
+
+
+###########################
+#                         #
+# Update smav_search data #
+#                         #
+###########################
+
+SET statement_timeout = 0;
+UPDATE smav_search
+SET search_vector = COALESCE(smav_search.search_vector, '') || ' ' || b.search_vector
+FROM (
+	SELECT
+		aa.article_id AS sma_id,
+		setweight(to_tsvector(STRING_AGG(COALESCE(aa.author_name, ''), ', ')), 'A') AS search_vector
+	FROM article_authors AS aa
+	GROUP BY aa.article_id
+) AS b
+WHERE smav_search.sma_id = b.sma_id
+
+
+
+###########################
+#                         #
+# Update smav_search data #
+#                         #
+###########################
+
+SELECT
+	ts_rank_cd(search_vector, query, 16) AS rank,
+	search_vector,
+	sma.id AS article_id,
+	sma.title AS article,
+	journals.id AS journal_id,
+	journals.name AS journal
+FROM websearch_to_tsquery('english', '"european journal" medicine') query, smav_search
+	LEFT JOIN sma ON smav_search.sma_id = sma.id
+	LEFT JOIN journals ON smav_search.journal_id = journals.id
+WHERE search_vector @@ query
+ORDER BY rank DESC
