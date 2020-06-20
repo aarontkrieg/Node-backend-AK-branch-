@@ -291,7 +291,7 @@ router.get("/get_subject_category", async (req, res) => {
   // else {
     let result = await pool.query(
       `SELECT DISTINCT subject_category FROM journals 
-    WHERE journals.subject_area='${area}'`
+      WHERE journals.subject_area='${area}'`
     )
   // }
   // console.log(result);
@@ -334,6 +334,10 @@ router.get("/get_search", async (req, res) => {
     connectionString: connectionString
   });
   console.log("search call request query", req.query);
+  let keyword = req.query.keyword;
+  let area = req.query.selected_sub_area;
+  let category = req.query.selected_sub_category;
+  let author = req.query.author;
   let result = await pool.query(
     `SELECT
     ts_rank_cd(search_vector, query, 16) AS rank,
@@ -341,7 +345,7 @@ router.get("/get_search", async (req, res) => {
     journals.name AS journal,
     sma.id AS article_id,
     sma.title AS title
-    FROM websearch_to_tsquery('english', 'roger australia') query, smav_search
+    FROM websearch_to_tsquery('${keyword}', '${author}') query, smav_search
     LEFT JOIN sma ON smav_search.sma_id = sma.id
     LEFT JOIN journals ON smav_search.journal_id = journals.id
     WHERE search_vector @@ query
